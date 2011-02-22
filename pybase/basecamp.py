@@ -142,8 +142,6 @@ class Basecamp(object):
         if self.baseURL[-1] == '/':
             self.baseURL = self.baseURL[:-1]
 
-        logger.debug('Base URL: %s' % self.baseURL)
-
         self.opener = urllib2.build_opener()
 
         self.auth_string = '%s:%s' % (username, password)
@@ -164,7 +162,8 @@ class Basecamp(object):
         if hasattr(data, 'findall'):
             data = ET.tostring(data)
 
-        logger.debug('Requesting URL: %s' % self.baseURL + path)
+
+        logger.debug('Requesting URL: %s ' % (self.baseURL + path, ) )
 
         req = urllib2.Request(url=self.baseURL + path, data=data)
 
@@ -208,23 +207,25 @@ class Basecamp(object):
 
         return keys
     
-    def old_create_todo_item(self, list_id, content, party_id=None, notify=False):
-        """
-        This call lets you add an item to an existing list. The item is added
-        to the bottom of the list. If a person is responsible for the item,
-        give their id as the party_id value. If a company is responsible,
-        prefix their company id with a 'c' and use that as the party_id value.
-        If the item has a person as the responsible party, you can use the
-        notify key to indicate whether an email should be sent to that person
-        to tell them about the assignment.
-        """
-        path = '/todos/create_item/%d' % list_id
-        req = ET.Element('request')
-        ET.SubElement(req, 'content').text = str(content)
-        if party_id is not None:
-            ET.SubElement(req, 'responsible-party').text = str(party_id)
-            ET.SubElement(req, 'notify').text = str(bool(notify)).lower()
-        return self._request(path, req)
+
+    def create_todo_list(self, project_id, list_name, list_description):
+        path = '/projects/%d/todo_lists.xml' % project_id
+                
+        req = ET.Element('todo-list')
+        
+        ET.SubElement(req, 'description').text = str(list_description)
+        ET.SubElement(req, 'name').text = str(list_name)
+        
+        
+        response = self._request( path, req )
+        logger.debug("Response code %d" % response.code)
+        # logger.debug( response.read() )
+        if response.code == 201:
+            return int(response.headers['location'].split('/')[-1])
+        else: 
+            return False
+    
+    def delete_todo_item(self, ):
     
     def create_todo_item(self, list_id, content, party_id=None, notify=False):
 
