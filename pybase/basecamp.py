@@ -8,7 +8,9 @@
 import pdb
 import base64
 import urllib2
+import httplib
 import datetime
+import re
 from elementtree.ElementTree import fromstring, tostring
 import elementtree.ElementTree as ET
 
@@ -59,6 +61,7 @@ url_mapping = {'get_projects':'/projects.xml', #projects
                #ToDo List Items
                'get_all_items':'/todo_lists/%d/todo_items.xml',
                'new_item':'/todo_lists/%d/todo_items/new.xml',
+               'get_todo_item':'/todo_items/%d.xml'
                }
 
 class pythonic_objectify(object):
@@ -206,7 +209,48 @@ class Basecamp(object):
             keys[project.id] = project.name
 
         return keys
-    
+
+    def mark_todo_item_complete(self, item_id):   
+        path = '/todo_items/%d/complete.xml' % item_id
+        logger.debug("Marking todo item complete %s" % path)
+        (headers, conn) = self._create_http_connection()
+        conn.request( "PUT", path, "<todo-item />", headers)        
+        res = conn.getresponse()
+        logger.debug("Response code %d" % res.status)
+        return res.status == 200
+        
+    def mark_todo_item_incomplete(self, item_id):        
+        path = '/todo_items/%d/uncomplete.xml' % item_id        
+        logger.debug("Marking todo item uncomplete %s" % path)
+        (headers, conn) = self._create_http_connection()
+        conn.request( "PUT", path, "<todo-item />", headers)        
+        res = conn.getresponse()
+        logger.debug("Response code %d" % res.status)
+        return res.status == 200
+
+    def update_todo_list(self, list_id, name, description ):
+        path = '/todo_lists/%d.xml' % list_id
+        logger.debug("Updating todo list %d - %s" % (list_id, name) )
+        req = ET.Element('todo-list')
+        ET.SubElement( req, "name").text = str( name )
+        ET.SubElement( req, "description").text = str( description )
+        
+        (headers, conn) = self._create_http_connection()
+        conn.request( "PUT", path, ET.tostring(req), headers )  
+        res = conn.getresponse()
+        logger.debug("Response code %d" % res.status)
+        return res.status == 200        
+
+    def update_todo_item(self, item_id, content):
+        path = '/todo_items/%d.xml' % item_id
+        logger.debug("Updateing todo item %d - %s" % (item_id, path) )
+        req = ET.Element('todo-item')
+        ET.SubElement( req, "content").text = str( content )
+        (headers, conn) = self._create_http_connection()
+        conn.request( "PUT", path, ET.tostring(req), headers )  
+        res = conn.getresponse()
+        logger.debug("Response code %d" % res.status)
+        return res.status == 200
 
     def create_todo_list(self, project_id, list_name, list_description):
         path = '/projects/%d/todo_lists.xml' % project_id
@@ -225,7 +269,41 @@ class Basecamp(object):
         else: 
             return False
     
-    def delete_todo_item(self, ):
+    def delete_todo_list(self, list_id):
+        path = '/todo_lists/%d.xml' % list_id
+        logger.debug("Deleting todo list %s" % path)
+        (headers, conn) = self._create_http_connection()
+        conn.request( "DELETE", path, None, headers)        
+        res = conn.getresponse()
+        logger.debug("Delete status %d" % res.status)
+        return res.status == 200
+        
+    def delete_todo_list_item(self, item_id):
+        path = '/todo_items/%d.xml' % item_id
+        (headers, conn) = self._create_http_connection()
+        conn.request( "DELETE", path, None, headers)
+        res = conn.getresponse()
+        logger.debug("Delete status %d" % res.status)
+        return res.status == 200
+    
+    def _create_http_connection( self ):
+        m = re.search('([htps]+)://(.*)/*', self.baseURL)
+        if m == None:
+            return None
+        prototocol = m.group(1)
+        hostname = m.group(2)
+
+        if prototocol.lower == "http":
+            conn = httplib.HTTPConnection(hostname)
+        else:
+            conn = httplib.HTTPSConnection(hostname)
+
+        headers_map = {}
+        
+        for header in self.headers:
+            headers_map[header[0]] = header[1]
+        return (headers_map, conn)
+        
     
     def create_todo_item(self, list_id, content, party_id=None, notify=False):
 
